@@ -9,10 +9,9 @@ import {
   ObjectType
 } from "type-graphql";
 import { User } from "../entities/User";
-import { MyContext } from "../types";
+import { MyContext } from "../types/context";
 import { validate } from "../utils/validate";
 import argon2 from "argon2";
-import Joi from "joi";
 
 @InputType()
 export class RegisterInput {
@@ -35,19 +34,19 @@ export class LoginInput {
   password!: string;
 }
 
-/* @ObjectType()
+@ObjectType()
 class AuthError {
   @Field(() => String, { nullable: true })
-  field: string;
+  key: string | number;
 
   @Field()
   message: string;
-} */
+}
 
 @ObjectType()
 class AuthResponse {
-  @Field(() => String, { nullable: true })
-  error?: String;
+  @Field(() => [AuthError], { nullable: true })
+  errors?: AuthError[];
 
   @Field(() => User, { nullable: true })
   user?: User;
@@ -58,59 +57,88 @@ export class UserResolver {
   @Mutation(() => AuthResponse)
   async register(
     @Arg("data", () => RegisterInput) data: RegisterInput,
-    @Ctx() { req, connection }: MyContext
+    @Ctx() { db }: MyContext
   ): Promise<AuthResponse> {
+    const errors: AuthError[] = [];
     const validateError = validate(data);
     if (validateError) {
-      return {
-        //field: validateError.details[0].path[0],
-        error: validateError.details[0].message
-      };
+      validateError.details.forEach((error) => {
+        errors.push({
+          key: error.path[0],
+          message: error.message
+        });
+      });
+      return { errors };
     }
-    const usernameExists = await connection
+    const usernameExists = await db
       .getRepository(User)
       .findOne({ username: data.username });
+    const emailExists = await db
+      .getRepository(User)
+      .findOne({ email: data.email });
     if (usernameExists) {
-      return {
-        error: "Username already exists"
-      };
+      errors.push({
+        key: "username",
+        message: "Username already exists"
+      });
     }
+    if (emailExists) {
+      errors.push({
+        key: "email",
+        message: "Email already exists"
+      });
+    }
+    if (usernameExists || emailExists) return { errors };
     const hashedPassword = await argon2.hash(data.password);
     const user = new User();
     user.username = data.username;
     user.email = data.email;
     user.password = hashedPassword;
-    connection.manager.save(user);
-
-    //req.session.userId = user.id;
+    db.manager.save(user);
     return { user };
   }
 
   @Mutation(() => AuthResponse)
   async login(
     @Arg("data", () => LoginInput) data: LoginInput,
-    @Ctx() { req, connection }: MyContext
+    @Ctx() { req, db }: MyContext
   ): Promise<AuthResponse> {
-    /* const error = validate(data);
-    if (error) {
-      return error.details;
-    } */
-    const user = await connection
+    const errors: AuthError[] = [];
+    const validateError = validate(data);
+    if (validateError) {
+      validateError.details.forEach((error) => {
+        errors.push({
+          key: error.path[0],
+          message: error.message
+        });
+      });
+      return { errors };
+    }
+    const user = await db
       .getRepository(User)
       .findOne({ username: data.username });
     if (!user) {
-      return {
-        error: "Invalid username or password"
-      };
+      errors.push({
+        key: "username",
+        message: "Invalid username"
+      });
+      return { errors };
     }
-    const pwValid = await argon2.verify(user.password, data.password);
-    if (!pwValid) {
-      return {
-        error: "Invalid username or password"
-      };
+    const passValid = await argon2.verify(user.password, data.password);
+    if (!passValid) {
+      errors.push({
+        key: "password",
+        message: "Invalid password"
+      });
+      return { errors };
     }
-
-    //req.session.userId = user.id;
+    req.session.userId = user.id;
     return { user };
+  }
+
+  @Query(() => User, { nullable: true })
+  async me(@Ctx() { req, db }: MyContext): Promise<User | undefined> {
+    if (!req.session.userId) return undefined;
+    return await db.getRepository(User).findOne({ id: req.session.userId });
   }
 }

@@ -1,56 +1,61 @@
 import { createConnection, Connection } from "typeorm";
 import { ApolloServer } from "apollo-server-express";
 import { buildSchema } from "type-graphql";
-import express from "express";
 import cors from "cors";
-//import {Title} from "./entities/Title";
-//import {User} from "./entities/User";
+import session from "express-session";
+import redis from "redis";
+import connectRedis from "connect-redis";
+import dotenv from "dotenv";
+dotenv.config();
+import express from "express";
 import { UserResolver } from "./resolvers/UserResolver";
 import { TitleResolver } from "./resolvers/TitleResolver";
 
 const main = async () => {
+  const redisStore = connectRedis(session);
+  const redisClient = redis.createClient();
+
   const connection: Connection = await createConnection();
-  await connection.synchronize();
-
-  /*const t1 = new Title();
-    t1.tvdb = 396390;
-    t1.imdb = "tt13991232";
-    await connection.manager.save(t1);
-
-    const t2 = new Title();
-    t2.tvdb = 82066;
-    t2.imdb = "tt1119644";
-    await connection.manager.save(t2);
-
-    const u1 = new User();
-    u1.username = "test11";
-    u1.password = "test2";
-    u1.email = "test3";
-    u1.titles = [t1, t2];
-    await connection.manager.save(u1);*/
+  await connection.synchronize(); //change in production
 
   const apolloServer = new ApolloServer({
     schema: await buildSchema({
       resolvers: [UserResolver, TitleResolver],
       validate: false
     }),
-    context: ({ req, res }) => ({ connection, req, res })
+    context: ({ req, res }) => ({ db: connection, req, res })
   });
 
   await apolloServer.start();
 
   const app = express();
+
   app.use(
     cors({
       credentials: true,
       origin: "https://studio.apollographql.com"
     })
   );
+  app.use(
+    session({
+      name: "connectid",
+      store: new redisStore({ client: redisClient, disableTouch: true }),
+      cookie: {
+        maxAge: 1000 * 60 * 60 * 24 * 3, //3 days
+        httpOnly: true,
+        sameSite: "lax", // csrf
+        secure: process.env.NODE_ENV === "production"
+      },
+      secret: process.env.SESSION_SECRET!,
+      resave: false,
+      saveUninitialized: false
+    })
+  );
 
   apolloServer.applyMiddleware({ app, cors: false });
 
-  app.listen(3000, () => {
-    console.log("Listening on port 3000");
+  app.listen(process.env.PORT, () => {
+    console.log("Listening on port 3001");
   });
 };
 
