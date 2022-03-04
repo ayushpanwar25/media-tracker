@@ -5,29 +5,29 @@ import { MyContext } from "../types/context";
 @Resolver()
 export class TitleResolver {
   @Query(() => [Title])
-  titles(@Ctx() { connection }: MyContext): Promise<Title[]> {
-    return connection.getRepository(Title).find();
+  titles(@Ctx() { db }: MyContext): Promise<Title[]> {
+    return db.getRepository(Title).find();
   }
 
   @Query(() => Title)
   title(
-    @Ctx() { connection }: MyContext,
+    @Ctx() { db }: MyContext,
     @Arg("tvdb", () => Int) tvdb: number
   ): Promise<Title | undefined> {
-    return connection.getRepository(Title).findOne(tvdb);
+    return db.getRepository(Title).findOne(tvdb);
   }
 
   @Mutation(() => Title)
   async createTitle(
-    @Ctx() { connection }: MyContext,
+    @Ctx() { db }: MyContext,
     @Arg("imdb") imdb: string,
     @Arg("tvdb", () => Int) tvdb: number
   ): Promise<Title> {
-    const title = await connection.getRepository(Title).findOne(tvdb);
+    const title = await db.getRepository(Title).findOne(tvdb);
     if (title) {
       throw new Error("Title already exists");
     }
-    return connection.getRepository(Title).save({
+    return db.getRepository(Title).save({
       imdb,
       tvdb
     });

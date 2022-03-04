@@ -18,4 +18,12 @@ export class User {
 
   @Column()
   password!: string;
+
+  @Field()
+  @Column()
+  plexToken: string;
+
+  @Field()
+  @Column()
+  sonarrToken: string;
 }

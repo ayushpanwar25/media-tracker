@@ -33,7 +33,7 @@ const main = async () => {
   app.use(
     cors({
       credentials: true,
-      origin: "https://studio.apollographql.com"
+      origin: true
     })
   );
   app.use(
@@ -41,9 +41,9 @@ const main = async () => {
       name: "connectid",
       store: new redisStore({ client: redisClient, disableTouch: true }),
       cookie: {
-        maxAge: 1000 * 60 * 60 * 24 * 3, //3 days
+        maxAge: 1000 * 60 * 60 * 24 * 3,
         httpOnly: true,
-        sameSite: "lax", // csrf
+        sameSite: "lax",
         secure: process.env.NODE_ENV === "production"
       },
       secret: process.env.SESSION_SECRET!,
@@ -55,7 +55,7 @@ const main = async () => {
   apolloServer.applyMiddleware({ app, cors: false });
 
   app.listen(process.env.PORT, () => {
-    console.log("Listening on port 3001");
+    console.log("🚀 Listening on port 3001");
   });
 };
 
