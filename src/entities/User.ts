@@ -20,10 +20,14 @@ export class User {
   password!: string;
 
   @Field()
-  @Column()
-  plexToken: string;
+  @Column({nullable: true})
+  plexToken?: string;
 
   @Field()
-  @Column()
-  sonarrToken: string;
+  @Column({nullable: true})
+  serverUri?: string;
+
+  @Field()
+  @Column({nullable: true})
+  sonarrToken?: string;
 }
